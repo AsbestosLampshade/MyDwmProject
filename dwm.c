@@ -43,6 +43,7 @@
 
 #include "drw.h"
 #include "util.h"
+#include "input_collector.h"
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -1379,15 +1380,55 @@ restack(Monitor *m)
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 
+//Count of tabs=9
+//Run dwm functions
+void translate(int inp){
+	static unsigned int ui=1;
+	Arg myarg;
+	fprintf(stderr,"Entered Translate\n");
+	if(inp==12){
+		ui++;
+		if(ui>9)
+			ui=1;
+		myarg.ui=1<<(ui-1);
+		view(&myarg);
+	}
+	else if(inp==11){
+		ui--;
+		if(ui<1)
+			ui=9;
+		myarg.ui=1<<(ui-1);
+		view(&myarg);
+	}
+	else if(inp==4){
+		running = 0;
+	}
+	fprintf(stderr,"Successfully exited\n");
+
+}
+
 void
 run(void)
 {
 	XEvent ev;
 	/* main event loop */
 	XSync(dpy, False);
-	while (running && !XNextEvent(dpy, &ev))
+	//Start custom func
+	int fd,inp;
+	fd=setup_controller();
+	fprintf(stderr,"%d file descriptor \n",fd);
+	while (running && !XNextEvent(dpy, &ev)){
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
+		if(fd>=0){
+			fprintf(stderr,"Entered Controller loop\n");
+			inp=interpret_output(print_events(fd));	
+			if(inp==0)
+				fd=-1;
+			translate(inp);
+
+		}
+	}
 }
 
 void
@@ -2052,6 +2093,19 @@ updatewmhints(Client *c)
 
 void
 view(const Arg *arg)
+{
+
+	fprintf(stderr,"%ud(%08X) expected ui \n",(unsigned int)arg->ui,(unsigned int) arg->ui);
+	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
+		return;
+	selmon->seltags ^= 1; /* toggle sel tagset */
+	if (arg->ui & TAGMASK)
+		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+	focus(NULL);
+	arrange(selmon);
+}
+
+void customview(const Arg *arg)
 {
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
 		return;
